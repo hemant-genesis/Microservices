@@ -12,6 +12,9 @@ import lombok.Data;
 @Data
 public class PaymentRequest {
 
+    @NotBlank(message = "Order id required")
+    private String orderId;
+
     @NotBlank(message = "payment method id required")
     private PaymentMethod paymentMethod;
 

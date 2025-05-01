@@ -57,5 +57,5 @@ app:
       name: ${USER_SERVICE_NAME:user-service}
       url: ${USER_SERVICE_URL:http://localhost:6000/api/v1/users}
     payment-service:
-      name: ${USER_SERVICE_NAME:payment-service}
-      url: ${USER_SERVICE_URL:http://localhost:6000/api/v1/payments}
+      name: ${PAYMENT_SERVICE_NAME:payment-service}
+      url: ${PAYMENT_SERVICE_URL:http://localhost:6000/api/v1/payments}

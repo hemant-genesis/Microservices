@@ -5,10 +5,12 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.payment.dto.PaymentRequest;
+import com.payment.dto.PaymentResponse;
 import com.payment.entity.Payment;
 import com.payment.enums.PaymentStatus;
 import com.payment.repository.PaymentRepository;
 import com.payment.service.abstractions.PaymentService;
+import com.payment.utils.Utils;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
@@ -20,18 +22,15 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public Payment processPayment(PaymentRequest request) {
-        Payment payment = new Payment();
-        payment.setOrderId(UUID.fromString(request.getOrderId()));
-        payment.setAmount(request.getAmount());
-        payment.setMethod(request.getMethod());
-        payment.setStatus(PaymentStatus.COMPLETED); // Or set logic for PENDING, etc.
-
-        return paymentRepository.save(payment);
+    public PaymentResponse processPayment(PaymentRequest request) {
+        Payment payment = Utils.toEntity(request, PaymentStatus.SUCCESS);
+        Payment savedPayment = paymentRepository.save(payment);
+        return Utils.toReponse(savedPayment);
     }
 
     @Override
-    public Payment getPaymentByOrderId(String orderId) {
-        return paymentRepository.findByOrderId(UUID.fromString(orderId));
+    public PaymentResponse getPaymentByOrderId(String orderId) {
+        Payment savedPayment = paymentRepository.findByOrderId(UUID.fromString(orderId));
+        return Utils.toReponse(savedPayment);
     }
 }

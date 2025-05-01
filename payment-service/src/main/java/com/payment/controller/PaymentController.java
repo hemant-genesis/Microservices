@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.payment.dto.PaymentRequest;
-import com.payment.entity.Payment;
+import com.payment.dto.PaymentResponse;
 import com.payment.service.abstractions.PaymentService;
 
 @RestController
@@ -22,12 +22,12 @@ public class PaymentController {
     }
 
     @PostMapping("/process")
-    public Payment processPayment(@RequestBody PaymentRequest request) {
+    public PaymentResponse processPayment(@RequestBody PaymentRequest request) {
         return paymentService.processPayment(request);
     }
 
     @GetMapping("/by-order/{orderId}")
-    public Payment getPayment(@PathVariable String orderId) {
+    public PaymentResponse getPayment(@PathVariable String orderId) {
         return paymentService.getPaymentByOrderId(orderId);
     }
 }

@@ -10,5 +10,5 @@ import lombok.Data;
 public class PaymentRequest {
     private String orderId;
     private BigDecimal amount;
-    private PaymentMethod method;
+    private PaymentMethod paymentMethod;
 }

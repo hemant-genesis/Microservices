@@ -22,6 +22,7 @@ import com.order.dto.responses.ProductResponse;
 import com.order.dto.responses.UserResponse;
 import com.order.entity.Order;
 import com.order.entity.OrderItem;
+import com.order.entity.Shipping;
 import com.order.enums.NotificationChannel;
 import com.order.enums.NotificationType;
 import com.order.enums.OrderStatus;
@@ -92,8 +93,37 @@ public class OrderServiceImpl implements OrderService {
             .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // 6 payment
+        // 6. Create Order entity
+        Order order = new Order();
+        order.setUserId(Utils.toUUID(user.getId()));
+        order.setTotalAmount(totalPrice);
+        order.setStatus(OrderStatus.CONFIRMED);
+        order.setCreatedAt(LocalDateTime.now());
+        orderItems.forEach(item -> item.setOrder(order));
+        order.setOrderItems(orderItems);
+        Shipping shipping = new Shipping();
+        shipping.setAddress(request.getShipping().getAddress());
+        shipping.setCity(request.getShipping().getCity());
+        shipping.setCountry(request.getShipping().getCountry());
+        shipping.setPostalCode(request.getShipping().getPostalCode());
+        order.setShipping(shipping);
+
+        // 7. Save order
+        Order savedOrder = orderRepository.save(order);
+
+        // 8. Send notification to user
+        NotificationEvent orderNotificationEvent = new NotificationEvent(
+            user.getId(),
+            "Order Confirmed",
+            "Order Confirmation",
+            "Your order #" + savedOrder.getId() + " has been confirmed successfully!",
+            NotificationType.ORDER_CONFIRMATION,
+            NotificationChannel.EMAIL
+        );
+        notificationProducer.sendNotification(orderNotificationEvent);
+
         PaymentRequest paymentRequest = new PaymentRequest();
+        paymentRequest.setOrderId(Utils.toString(savedOrder.getId()));
         paymentRequest.setAmount(totalPrice);
         paymentRequest.setPaymentMethod(request.getPayment().getPaymentMethod());
 
@@ -109,7 +139,6 @@ public class OrderServiceImpl implements OrderService {
                 NotificationChannel.EMAIL
             );
             notificationProducer.sendNotification(notificationEvent);
-
             throw new RuntimeException("Payment failed!");
         }
 
@@ -122,29 +151,6 @@ public class OrderServiceImpl implements OrderService {
             NotificationChannel.EMAIL
         );
         notificationProducer.sendNotification(paymentNotificationEvent);
-
-        // 6. Create Order entity
-        Order order = new Order();
-        order.setUserId(Utils.toUUID(user.getId()));
-        order.setTotalAmount(totalPrice);
-        order.setStatus(OrderStatus.CONFIRMED);
-        order.setCreatedAt(LocalDateTime.now());
-        orderItems.forEach(item -> item.setOrder(order));
-        order.setOrderItems(orderItems);
-
-        // 7. Save order
-        Order savedOrder = orderRepository.save(order);
-
-        // 8. Send notification to user
-        NotificationEvent orderNotificationEvent = new NotificationEvent(
-            user.getId(),
-            "Order Confirmed",
-            "Order Confirmation",
-            "Your order #" + savedOrder.getId() + " has been confirmed successfully!",
-            NotificationType.ORDER_CONFIRMATION,
-            NotificationChannel.EMAIL
-        );
-        notificationProducer.sendNotification(orderNotificationEvent);
 
         // 9. Return order response
         return OrderConverter.toDto(savedOrder);

@@ -1,9 +1,9 @@
 package com.payment.service.abstractions;
 
 import com.payment.dto.PaymentRequest;
-import com.payment.entity.Payment;
+import com.payment.dto.PaymentResponse;
 
 public interface PaymentService {
-    Payment processPayment(PaymentRequest request);
-    Payment getPaymentByOrderId(String orderId);
+    PaymentResponse processPayment(PaymentRequest request);
+    PaymentResponse getPaymentByOrderId(String orderId);
 }
