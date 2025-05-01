@@ -1,0 +1,26 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/Hemantchaurasiya/ecommerce-microservices-configurations.git
+          skipSslValidation: true
+          clone-on-start: true
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://${EUREKA_SERVER_HOST:localhost}:${EUREKA_SERVER_PORT:8761}/eureka/
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

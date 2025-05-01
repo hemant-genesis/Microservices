@@ -1,0 +1,256 @@
+services:
+  # MySQL
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: user_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - microservices-network
+
+  # MongoDB
+  mongodb:
+    image: mongo
+    container_name: mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - microservices-network
+
+  # Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - microservices-network
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      # KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      # KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+    networks:
+      - microservices-network
+
+  # Discovery Server (Eureka)
+  discovery-server:
+    container_name: discovery-server
+    image: maven:3.9.6-eclipse-temurin-17
+    working_dir: /app
+    volumes:
+      - ./discovery-server:/app
+      - ~/.m2:/root/.m2
+    command: >
+      sh -c "mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Dspring.devtools.restart.enabled=true'"
+    ports:
+      - "8761:8761"
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8761
+      SPRING_APPLICATION_NAME: discovery-server
+    networks:
+      - microservices-network
+
+  # API Gateway
+  api-gateway:
+    container_name: api-gateway
+    image: maven:3.9.6-eclipse-temurin-17
+    working_dir: /app
+    volumes:
+      - ./api-gateway:/app
+      - ~/.m2:/root/.m2
+    command: >
+      sh -c "mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Dspring.devtools.restart.enabled=true'"
+    ports:
+      - "6000:6000"
+    depends_on:
+      - discovery-server
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 6000
+      SPRING_APPLICATION_NAME: api-gateway
+      EUREKA_SERVER_HOST: discovery-server
+      EUREKA_SERVER_PORT: 8761
+    networks:
+      - microservices-network
+
+  # User Service
+  user-service:
+    container_name: user-service
+    image: maven:3.9.6-eclipse-temurin-17
+    working_dir: /app
+    volumes:
+      - ./user-service:/app
+      - ~/.m2:/root/.m2
+    command: >
+      sh -c "mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Dspring.devtools.restart.enabled=true'"
+    ports:
+      - "1000:1000"
+    depends_on:
+      - mysql
+      - discovery-server
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 1000
+      SPRING_APPLICATION_NAME: user-service
+      EUREKA_SERVER_HOST: discovery-server
+      EUREKA_SERVER_PORT: 8761
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/user_db
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+    networks:
+      - microservices-network
+
+  # Product Service
+  product-service:
+    container_name: product-service
+    image: maven:3.9.6-eclipse-temurin-17
+    working_dir: /app
+    volumes:
+      - ./product-service:/app
+      - ~/.m2:/root/.m2
+    command: >
+      sh -c "mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Dspring.devtools.restart.enabled=true'"
+    ports:
+      - "2000:2000"
+    depends_on:
+      - mongodb
+      - discovery-server
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 2000
+      SPRING_APPLICATION_NAME: product-service
+      EUREKA_SERVER_HOST: discovery-server
+      EUREKA_SERVER_PORT: 8761
+      SPRING_DATA_MONGODB_URI: mongodb://root:root@mongodb:27017/product-db?authSource=admin
+
+    networks:
+      - microservices-network
+
+  # Order Service
+  order-service:
+    container_name: order-service
+    image: maven:3.9.6-eclipse-temurin-17
+    working_dir: /app
+    volumes:
+      - ./order-service:/app
+      - ~/.m2:/root/.m2
+    command: >
+      sh -c "mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Dspring.devtools.restart.enabled=true'"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+      - discovery-server
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 3000
+      SPRING_APPLICATION_NAME: order-service
+      EUREKA_SERVER_HOST: discovery-server
+      EUREKA_SERVER_PORT: 8761
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/order_db
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PRODUCT_SERVICE_NAME: product-service
+      PRODUCT_SERVICE_URL: http://product-service:2000/api/v1/products
+      USER_SERVICE_NAME: user-service
+      USER_SERVICE_URL: http://user-service:1000/api/v1/users
+    networks:
+      - microservices-network
+
+  # Notification Service
+  notification-service:
+    container_name: notification-service
+    image: maven:3.9.6-eclipse-temurin-17
+    working_dir: /app
+    volumes:
+      - ./notification-service:/app
+      - ~/.m2:/root/.m2
+    command: >
+      sh -c "mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Dspring.devtools.restart.enabled=true'"
+    ports:
+      - "4000:4000"
+    depends_on:
+      - mongodb
+      - discovery-server
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 4000
+      SPRING_APPLICATION_NAME: notification-service
+      EUREKA_SERVER_HOST: discovery-server
+      EUREKA_SERVER_PORT: 8761
+      SPRING_DATA_MONGODB_URI: mongodb://root:root@mongodb:27017/notification-db?authSource=admin
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    networks:
+      - microservices-network
+  
+  # Payment Service
+  payment-service:
+    container_name: payment-service
+    image: maven:3.9.6-eclipse-temurin-17
+    working_dir: /app
+    volumes:
+      - ./payment-service:/app
+      - ~/.m2:/root/.m2
+    command: >
+      sh -c "mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Dspring.devtools.restart.enabled=true'"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql
+      - discovery-server
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 5000
+      SPRING_APPLICATION_NAME: payment-service
+      EUREKA_SERVER_HOST: discovery-server
+      EUREKA_SERVER_PORT: 8761
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/payment_db
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    networks:
+      - microservices-network
+
+networks:
+  microservices-network:
+
+volumes:
+  mysql-data:
+  mongodb-data:
