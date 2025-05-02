@@ -1,12 +1,15 @@
-package com.product.utils;
+package com.product.mappers;
+
+import org.springframework.stereotype.Component;
 
 import com.product.dto.requests.ProductReviewRequest;
 import com.product.dto.responses.ProductReviewResponse;
 import com.product.entity.ProductReview;
 
+@Component
 public class ProductReviewConverter {
     // Convert ProductReviewRequest to ProductReview
-    public static ProductReview toProductReview(ProductReviewRequest productReviewRequest) {
+    public ProductReview toProductReview(ProductReviewRequest productReviewRequest) {
         ProductReview productReview = new ProductReview();
         productReview.setReview(productReviewRequest.getReview());
         productReview.setRating(productReviewRequest.getRating());
@@ -15,7 +18,7 @@ public class ProductReviewConverter {
     }
 
     // Convert ProductReview to ProductReviewResponse
-    public static ProductReviewResponse toProductReviewResponse(ProductReview productReview) {
+    public ProductReviewResponse toProductReviewResponse(ProductReview productReview) {
         ProductReviewResponse productReviewResponse = new ProductReviewResponse();
         productReviewResponse.setId(productReview.getId());
         productReviewResponse.setReview(productReview.getReview());

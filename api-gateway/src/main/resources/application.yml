@@ -30,36 +30,40 @@ spring:
           uri: lb://user-service
           predicates:
             - Path=/api/v1/users/**
-
-        # - id: product-service
-        #   uri: lb://product-service
-        #   predicates:
-        #     - Path=/api/v1/categories/**
-        #     - Path=/api/v1/products/**
+          filters:
+            - StripPrefix=2
 
         - id: product-service-categories
           uri: lb://product-service
           predicates:
             - Path=/api/v1/categories/**
+          filters:
+            - StripPrefix=2
 
         - id: product-service-products
           uri: lb://product-service
           predicates:
             - Path=/api/v1/products/**
+          filters:
+            - StripPrefix=2
 
         - id: order-service
           uri: lb://order-service
           predicates:
             - Path=/api/v1/orders/**
+          filters:
+            - StripPrefix=2
 
         - id: notification-service
           uri: lb://notification-service
           predicates:
             - Path=/api/v1/notifications/**
+          filters:
+            - StripPrefix=2
 
         - id: payment-service
           uri: lb://payment-service
           predicates:
             - Path=/api/v1/payments/**
-          # filters:
-          #   - StripPrefix=2
+          filters:
+            - StripPrefix=2

@@ -1,6 +1,8 @@
-package com.order.utils;
+package com.order.mappers;
 
 import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Component;
 
 import com.order.dto.requests.OrderItemRequest;
 import com.order.dto.requests.OrderRequest;
@@ -13,9 +15,15 @@ import com.order.entity.OrderItem;
 import com.order.entity.Shipping;
 import com.order.enums.OrderStatus;
 
-public class OrderConverter {
+import lombok.RequiredArgsConstructor;
 
-    private static OrderItem toEntity(OrderItemRequest request) {
+@Component
+@RequiredArgsConstructor
+public class OrderMapper {
+
+    private final UUIDMapper uuidMapper;
+
+    private OrderItem toEntity(OrderItemRequest request) {
         OrderItem item = new OrderItem();
         item.setProductId(request.getProductId());
         item.setQuantity(request.getQuantity());
@@ -23,7 +31,7 @@ public class OrderConverter {
         return item;
     }
 
-    private static OrderItemResponse toDto(OrderItem item) {
+    private OrderItemResponse toDto(OrderItem item) {
         OrderItemResponse response = new OrderItemResponse();
         response.setProductId(item.getProductId());
         response.setQuantity(item.getQuantity());
@@ -31,27 +39,27 @@ public class OrderConverter {
         return response;
     }
 
-    public static Order toEntity(OrderRequest request) {
+    public Order toEntity(OrderRequest request) {
         Order order = new Order();
-        order.setUserId(Utils.toUUID(request.getUserId()));
+        order.setUserId(uuidMapper.toUUID(request.getUserId()));
         order.setTotalAmount(request.getTotalAmount());
         order.setStatus(OrderStatus.valueOf(request.getStatus().toUpperCase()));
         order.setOrderItems(request.getOrderItems().stream()
-                .map(OrderConverter::toEntity)
+                .map((item) -> toEntity(item))
                 .collect(Collectors.toList()));
         // order.setPayment(toEntity(request.getPayment()));
         order.setShipping(toEntity(request.getShipping()));
         return order;
     }
 
-    public static OrderResponse toDto(Order order) {
+    public OrderResponse toDto(Order order) {
         OrderResponse response = new OrderResponse();
-        response.setId(Utils.toString(order.getId()));
-        response.setUserId(Utils.toString(order.getUserId()));
+        response.setId(uuidMapper.toString(order.getId()));
+        response.setUserId(uuidMapper.toString(order.getUserId()));
         response.setTotalAmount(order.getTotalAmount());
         response.setStatus(order.getStatus().name());
         response.setOrderItems(order.getOrderItems().stream()
-                .map(OrderConverter::toDto)
+                .map((item) -> toDto(item))
                 .collect(Collectors.toList()));
         // response.setPayment(toDto(order.getPayment()));
         response.setShipping(toDto(order.getShipping()));
@@ -60,7 +68,7 @@ public class OrderConverter {
         return response;
     }
 
-    private static Shipping toEntity(ShippingRequest request) {
+    private Shipping toEntity(ShippingRequest request) {
         Shipping shipping = new Shipping();
         shipping.setAddress(request.getAddress());
         shipping.setCity(request.getCity());
@@ -69,7 +77,7 @@ public class OrderConverter {
         return shipping;
     }
 
-    private static ShippingResponse toDto(Shipping shipping) {
+    private ShippingResponse toDto(Shipping shipping) {
         ShippingResponse response = new ShippingResponse();
         response.setAddress(shipping.getAddress());
         response.setCity(shipping.getCity());
@@ -78,19 +86,19 @@ public class OrderConverter {
         return response;
     }
 
-    // private static Payment toEntity(PaymentRequest request) {
-    //     Payment payment = new Payment();
-    //     payment.setMethod(request.getPaymentMethod());
-    //     payment.setAmount(request.getAmount());
-    //     return payment;
+    // private Payment toEntity(PaymentRequest request) {
+    // Payment payment = new Payment();
+    // payment.setMethod(request.getPaymentMethod());
+    // payment.setAmount(request.getAmount());
+    // return payment;
     // }
 
-    // private static PaymentResponse toDto(Payment payment) {
-    //     PaymentResponse response = new PaymentResponse();
-    //     response.setMethod(payment.getMethod());
-    //     response.setAmount(payment.getAmount());
-    //     response.setStatus(payment.getStatus());
-    //     return response;
+    // private PaymentResponse toDto(Payment payment) {
+    // PaymentResponse response = new PaymentResponse();
+    // response.setMethod(payment.getMethod());
+    // response.setAmount(payment.getAmount());
+    // response.setStatus(payment.getStatus());
+    // return response;
     // }
 
 }

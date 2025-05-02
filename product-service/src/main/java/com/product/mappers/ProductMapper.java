@@ -1,17 +1,25 @@
-package com.product.utils;
+package com.product.mappers;
 
 import java.util.List;
 
+import org.springframework.stereotype.Component;
+
 import com.product.dto.requests.ProductRequest;
 import com.product.dto.responses.ProductResponse;
+import com.product.entity.Category;
 import com.product.entity.Inventory;
 import com.product.entity.Product;
-import com.product.entity.Category;
 
-public class ProductConverter {
+import lombok.RequiredArgsConstructor;
+
+@Component
+@RequiredArgsConstructor
+public class ProductMapper {
+
+    private final CategoryMapper categoryMapper;
 
     // Convert ProductRequest to Product
-    public static Product toProduct(ProductRequest productRequest, String categoryId, Inventory inventory) {
+    public Product toProduct(ProductRequest productRequest, String categoryId, Inventory inventory) {
         Product product = new Product();
         product.setName(productRequest.getName());
         product.setDescription(productRequest.getDescription());
@@ -25,7 +33,7 @@ public class ProductConverter {
     }
 
     // Convert Product to ProductRequest
-    public static ProductRequest toProductRequest(Product product) {
+    public ProductRequest toProductRequest(Product product) {
         ProductRequest productRequest = new ProductRequest();
         productRequest.setName(product.getName());
         productRequest.setDescription(product.getDescription());
@@ -36,7 +44,7 @@ public class ProductConverter {
     }
 
     // Convert Product to ProductResponse
-    public static ProductResponse toProductResponse(Product product, Category category) {
+    public ProductResponse toProductResponse(Product product, Category category) {
         ProductResponse productResponse = new ProductResponse();
         productResponse.setId(product.getId());
         productResponse.setName(product.getName());
@@ -51,7 +59,7 @@ public class ProductConverter {
         
         // Convert Category to CategoryResponse
         if (product.getCategoryId() != null) {
-            productResponse.setCategory(CategoryConverter.toCategoryResponse(category));
+            productResponse.setCategory(categoryMapper.toCategoryResponse(category));
         }
         
         return productResponse;

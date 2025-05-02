@@ -11,21 +11,30 @@ import com.payment.dto.PaymentRequest;
 import com.payment.dto.PaymentResponse;
 import com.payment.service.abstractions.PaymentService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+
 @RestController
-@RequestMapping("/api/v1/payments")
+@RequestMapping("/payments")
+@RequiredArgsConstructor
+@Tag(name = "Payment Controller", description = "APIs for payments users")
 public class PaymentController {
     
     private final PaymentService paymentService;
-
-    public PaymentController(PaymentService paymentService) {
-        this.paymentService = paymentService;
-    }
 
     @PostMapping("/process")
     public PaymentResponse processPayment(@RequestBody PaymentRequest request) {
         return paymentService.processPayment(request);
     }
 
+    @Operation(summary = "Get a payments details by orderID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "204", description = "Payment found"),
+        @ApiResponse(responseCode = "404", description = "Payment not found")
+    })
     @GetMapping("/by-order/{orderId}")
     public PaymentResponse getPayment(@PathVariable String orderId) {
         return paymentService.getPaymentByOrderId(orderId);

@@ -8,8 +8,10 @@ import com.order.dto.responses.OrderResponse;
 
 public interface OrderService {
     OrderResponse placeOrder(OrderRequest request);
+
     OrderResponse getOrderById(UUID id);
+
     List<OrderResponse> getAllOrdersOfUser(UUID userId);
-    OrderResponse updateOrder(UUID id, OrderRequest request);
+
     OrderResponse cancelOrder(UUID id);
 }

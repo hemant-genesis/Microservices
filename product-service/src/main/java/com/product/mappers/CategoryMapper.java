@@ -1,14 +1,17 @@
-package com.product.utils;
+package com.product.mappers;
 
 import java.util.List;
+
+import org.springframework.stereotype.Component;
 
 import com.product.dto.requests.CategoryRequest;
 import com.product.dto.responses.CategoryResponse;
 import com.product.entity.Category;
 
-public class CategoryConverter {
+@Component
+public class CategoryMapper {
 
-    public static Category toCategory(CategoryRequest categoryRequest) {
+    public Category toCategory(CategoryRequest categoryRequest) {
         Category category = new Category();
         category.setName(categoryRequest.getName());
         category.setDescription(categoryRequest.getDescription());
@@ -16,7 +19,7 @@ public class CategoryConverter {
         return category;
     }
 
-    public static CategoryResponse toCategoryResponse(Category category) {
+    public CategoryResponse toCategoryResponse(Category category) {
         CategoryResponse categoryResponse = new CategoryResponse();
         categoryResponse.setId(category.getId());
         categoryResponse.setName(category.getName());

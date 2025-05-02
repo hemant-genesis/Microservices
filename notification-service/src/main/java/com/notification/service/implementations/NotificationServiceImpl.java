@@ -3,8 +3,6 @@ package com.notification.service.implementations;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -13,20 +11,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.notification.dto.UserDto;
 import com.notification.entity.Notification;
 import com.notification.entity.NotificationEvent;
-import com.notification.entity.NotificationTemplate;
 import com.notification.enums.NotificationStatus;
 import com.notification.repository.NotificationRepository;
 import com.notification.service.abstractions.NotificationService;
 import com.notification.service.abstractions.UserService;
 
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserService userService;
-
-    private final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
     
     public NotificationServiceImpl(
         NotificationRepository notificationRepository,

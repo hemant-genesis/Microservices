@@ -1,33 +1,34 @@
-package com.payment.utils;
+package com.payment.mappers;
 
 import java.util.UUID;
+
+import org.springframework.stereotype.Component;
 
 import com.payment.dto.PaymentRequest;
 import com.payment.dto.PaymentResponse;
 import com.payment.entity.Payment;
 import com.payment.enums.PaymentStatus;
 
-public class Utils {
-    public static String toString(UUID uuid){
-        return uuid.toString();
-    }
+import lombok.RequiredArgsConstructor;
 
-    public static UUID toUUID(String uuidString){
-        return UUID.fromString(uuidString);
-    }
+@Component
+@RequiredArgsConstructor
+public class PaymentMapper {
 
-    public static PaymentResponse toReponse(Payment payment) {
+    private final UUIDMapper uuidMapper;
+
+    public PaymentResponse toReponse(Payment payment) {
         PaymentResponse paymentResponse = new PaymentResponse();
         paymentResponse.setAmount(payment.getAmount());
-        paymentResponse.setTransactionId(Utils.toString(payment.getId()));
-        paymentResponse.setOrderId(Utils.toString(payment.getOrderId()));
+        paymentResponse.setTransactionId(uuidMapper.toString(payment.getId()));
+        paymentResponse.setOrderId(uuidMapper.toString(payment.getOrderId()));
         paymentResponse.setMethod(payment.getMethod());
         paymentResponse.setStatus(payment.getStatus());
         paymentResponse.setCreatedAt(payment.getCreatedAt());
         return paymentResponse;
     }
 
-    public static Payment toEntity(PaymentRequest request, PaymentStatus paymentStatus){
+    public Payment toEntity(PaymentRequest request, PaymentStatus paymentStatus){
         Payment payment = new Payment();
         payment.setOrderId(UUID.fromString(request.getOrderId()));
         payment.setAmount(request.getAmount());

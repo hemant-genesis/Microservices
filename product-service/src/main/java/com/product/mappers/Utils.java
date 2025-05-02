@@ -1,4 +1,4 @@
-package com.product.utils;
+package com.product.mappers;
 
 public class Utils {
     public static final String PRODUCT_NOT_FOUND = "Product not found";

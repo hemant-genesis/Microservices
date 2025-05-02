@@ -1,16 +1,16 @@
 package com.notification.service.consumers;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import com.notification.service.abstractions.NotificationService;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class NotificationConsumer {
     private final NotificationService notificationService;
-    private Logger log = LoggerFactory.getLogger(NotificationConsumer.class);
 
     public NotificationConsumer(NotificationService notificationService) {
         this.notificationService = notificationService;

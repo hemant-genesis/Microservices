@@ -27,17 +27,18 @@ import com.order.enums.NotificationChannel;
 import com.order.enums.NotificationType;
 import com.order.enums.OrderStatus;
 import com.order.enums.PaymentStatus;
+import com.order.exception.PaymentFailedException;
 import com.order.exception.ResourceNotFoundException;
+import com.order.mappers.OrderMapper;
+import com.order.mappers.UUIDMapper;
 import com.order.repository.OrderRepository;
 import com.order.service.abstractions.OrderService;
 import com.order.service.producers.NotificationProducer;
-import com.order.utils.OrderConverter;
-import com.order.utils.Utils;
 
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -45,62 +46,87 @@ public class OrderServiceImpl implements OrderService {
     private final ProductClient productClient;
     private final NotificationProducer notificationProducer;
     private final PaymentClient paymentClient;
+    private OrderMapper orderMapper;
+    private UUIDMapper uuidMapper;
 
     @Override
     public OrderResponse placeOrder(OrderRequest request) {
-        // 1. Fetch user
-        UserResponse user = userServiceClient.getUserById(request.getUserId().toString());
+        UserResponse user = fetchUser(uuidMapper.toUUID(request.getUserId()));
+
+        List<ProductResponse> products = fetchProducts(request);
+        Map<String, ProductResponse> productMap = mapProductsById(products);
+
+        List<OrderItem> orderItems = buildOrderItems(request, productMap);
+        BigDecimal totalPrice = calculateTotalPrice(orderItems);
+
+        Order order = createOrder(user, request, orderItems, totalPrice);
+        Order savedOrder = orderRepository.save(order);
+
+        sendOrderConfirmationNotification(user, savedOrder);
+
+        processPaymentOrThrow(request, savedOrder, user, totalPrice);
+
+        sendPaymentSuccessNotification(user, savedOrder);
+
+        return orderMapper.toDto(savedOrder);
+    }
+
+    private UserResponse fetchUser(UUID userId) {
+        UserResponse user = userServiceClient.getUserById(userId.toString());
         if (user == null) {
-            throw new RuntimeException("User not found with ID: " + request.getUserId());
+            throw new ResourceNotFoundException("User", "id", userId);
         }
+        return user;
+    }
 
-        // 2. Fetch product details
-        List<String> productIds = request.getOrderItems()
-            .stream()
-            .map(OrderItemRequest::getProductId)
-            .toList();
+    private List<ProductResponse> fetchProducts(OrderRequest request) {
+        List<String> productIds = request.getOrderItems().stream()
+                .map(OrderItemRequest::getProductId)
+                .toList();
+
         List<ProductResponse> products = productClient.getProductsByIdList(productIds);
-
         if (products == null || products.isEmpty()) {
-            throw new RuntimeException("No products found for the given IDs.");
+            throw new ResourceNotFoundException("Products", "ids", productIds);
         }
+        return products;
+    }
 
-         // 3. Map productId to ProductResponse for easy lookup
-        Map<String, ProductResponse> productMap = products.stream()
-            .collect(Collectors.toMap(ProductResponse::getId, p -> p));
+    private Map<String, ProductResponse> mapProductsById(List<ProductResponse> products) {
+        return products.stream()
+                .collect(Collectors.toMap(ProductResponse::getId, p -> p));
+    }
 
-        // 4. Build Order Items (enriching price and product name from ProductResponse)
-        List<OrderItem> orderItems = request.getOrderItems()
-        .stream()
-        .map(orderItemRequest -> {
-            ProductResponse product = productMap.get(orderItemRequest.getProductId());
+    private List<OrderItem> buildOrderItems(OrderRequest request, Map<String, ProductResponse> productMap) {
+        return request.getOrderItems().stream()
+                .map(orderItemRequest -> {
+                    ProductResponse product = productMap.get(orderItemRequest.getProductId());
+                    if (product == null) {
+                        throw new ResourceNotFoundException("Product", "id", orderItemRequest.getProductId());
+                    }
+                    OrderItem item = new OrderItem();
+                    item.setProductId(product.getId());
+                    item.setProductName(product.getName());
+                    item.setPrice(product.getPrice());
+                    item.setQuantity(orderItemRequest.getQuantity());
+                    return item;
+                }).toList();
+    }
 
-            if (product == null) {
-                throw new RuntimeException("Product not found with ID: " + orderItemRequest.getProductId());
-            }
+    private BigDecimal calculateTotalPrice(List<OrderItem> items) {
+        return items.stream()
+                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
-            OrderItem orderItem = new OrderItem();
-            orderItem.setProductId(product.getId());
-            orderItem.setProductName(product.getName());
-            orderItem.setPrice(product.getPrice());
-            orderItem.setQuantity(orderItemRequest.getQuantity());
-            return orderItem;
-        })
-        .toList();
-
-         // 5. Calculate total price
-        BigDecimal totalPrice = orderItems.stream()
-            .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // 6. Create Order entity
+    private Order createOrder(UserResponse user, OrderRequest request, List<OrderItem> items, BigDecimal totalPrice) {
         Order order = new Order();
-        order.setUserId(Utils.toUUID(user.getId()));
+        order.setUserId(uuidMapper.toUUID(user.getId()));
         order.setTotalAmount(totalPrice);
         order.setStatus(OrderStatus.CONFIRMED);
         order.setCreatedAt(LocalDateTime.now());
-        orderItems.forEach(item -> item.setOrder(order));
-        order.setOrderItems(orderItems);
+        items.forEach(item -> item.setOrder(order));
+        order.setOrderItems(items);
+
         Shipping shipping = new Shipping();
         shipping.setAddress(request.getShipping().getAddress());
         shipping.setCity(request.getShipping().getCity());
@@ -108,77 +134,65 @@ public class OrderServiceImpl implements OrderService {
         shipping.setPostalCode(request.getShipping().getPostalCode());
         order.setShipping(shipping);
 
-        // 7. Save order
-        Order savedOrder = orderRepository.save(order);
+        return order;
+    }
 
-        // 8. Send notification to user
-        NotificationEvent orderNotificationEvent = new NotificationEvent(
-            user.getId(),
-            "Order Confirmed",
-            "Order Confirmation",
-            "Your order #" + savedOrder.getId() + " has been confirmed successfully!",
-            NotificationType.ORDER_CONFIRMATION,
-            NotificationChannel.EMAIL
-        );
-        notificationProducer.sendNotification(orderNotificationEvent);
+    private void sendOrderConfirmationNotification(UserResponse user, Order order) {
+        NotificationEvent event = new NotificationEvent(
+                user.getId(),
+                "Order Confirmed",
+                "Order Confirmation",
+                "Your order #" + order.getId() + " has been confirmed successfully!",
+                NotificationType.ORDER_CONFIRMATION,
+                NotificationChannel.EMAIL);
+        notificationProducer.sendNotification(event);
+    }
 
+    private void processPaymentOrThrow(OrderRequest request, Order savedOrder, UserResponse user, BigDecimal amount) {
         PaymentRequest paymentRequest = new PaymentRequest();
-        paymentRequest.setOrderId(Utils.toString(savedOrder.getId()));
-        paymentRequest.setAmount(totalPrice);
+        paymentRequest.setOrderId(uuidMapper.toString(savedOrder.getId()));
+        paymentRequest.setAmount(amount);
         paymentRequest.setPaymentMethod(request.getPayment().getPaymentMethod());
 
         PaymentResponse paymentResponse = paymentClient.processPayment(paymentRequest);
 
         if (paymentResponse == null || paymentResponse.getStatus() != PaymentStatus.SUCCESS) {
-            NotificationEvent notificationEvent = new NotificationEvent(
-                user.getId(),
-                "Payment failed",
-                "Payment failed",
-                "Your payment is failed",
-                NotificationType.PAYMENT_FAILED,
-                NotificationChannel.EMAIL
-            );
-            notificationProducer.sendNotification(notificationEvent);
-            throw new RuntimeException("Payment failed!");
+            NotificationEvent failure = new NotificationEvent(
+                    user.getId(),
+                    "Payment failed",
+                    "Payment Failed",
+                    "Your payment for order #" + savedOrder.getId() + " has failed.",
+                    NotificationType.PAYMENT_FAILED,
+                    NotificationChannel.EMAIL);
+            notificationProducer.sendNotification(failure);
+            throw new PaymentFailedException("Payment failed for orderId: " + savedOrder.getId());
         }
+    }
 
-        NotificationEvent paymentNotificationEvent = new NotificationEvent(
-            user.getId(),
-            "Payment done",
-            "Payment sucessfull",
-            "Your payment is sucessfull with transaction id = " + paymentResponse.getTransactionId(),
-            NotificationType.PAYMENT_SUCCESS,
-            NotificationChannel.EMAIL
-        );
-        notificationProducer.sendNotification(paymentNotificationEvent);
-
-        // 9. Return order response
-        return OrderConverter.toDto(savedOrder);
+    private void sendPaymentSuccessNotification(UserResponse user, Order order) {
+        NotificationEvent success = new NotificationEvent(
+                user.getId(),
+                "Payment Successful",
+                "Payment Success",
+                "Your payment was successful for order #" + order.getId(),
+                NotificationType.PAYMENT_SUCCESS,
+                NotificationChannel.EMAIL);
+        notificationProducer.sendNotification(success);
     }
 
     @Override
     public OrderResponse getOrderById(UUID id) {
         Order order = orderRepository.findById(id)
-        .orElseThrow(() -> new ResourceNotFoundException("Order", "id", id));
-        return OrderConverter.toDto(order);
+                .orElseThrow(() -> new ResourceNotFoundException("Order", "id", id));
+        return orderMapper.toDto(order);
     }
 
     @Override
     public List<OrderResponse> getAllOrdersOfUser(UUID userId) {
         List<Order> orders = orderRepository.findByUserId(userId);
         return orders.stream()
-                .map(OrderConverter::toDto)
+                .map(orderMapper::toDto)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    public OrderResponse updateOrder(UUID id, OrderRequest request) {
-        Order existingOrder = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order", "id", id));
-        Order updatedOrder = OrderConverter.toEntity(request);
-        updatedOrder.setId(existingOrder.getId()); // Preserve the ID
-        Order savedOrder = orderRepository.save(updatedOrder);
-        return OrderConverter.toDto(savedOrder);
     }
 
     @Override
@@ -187,7 +201,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", id));
         order.setStatus(OrderStatus.CANCELLED);
         Order savedOrder = orderRepository.save(order);
-        return OrderConverter.toDto(savedOrder);
+        return orderMapper.toDto(savedOrder);
     }
 
 }
